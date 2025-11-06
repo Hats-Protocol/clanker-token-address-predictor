@@ -18,6 +18,8 @@ contract ClankerAddressPredictorTest is Test {
   address constant MAINNET_MEV_MODULE = 0x33e2Eda238edcF470309b8c6D228986A1204c8f9;
   address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
+  string constant CLANKER_WORLD_CONTEXT = '{"interface":"clanker.world","platform":"","messageId":"","id":""}';
+
   // Pre-loaded addresses for fuzz testing (avoids excessive RPC calls)
   address[] internal preloadedAddresses;
   Clanker internal factory;
@@ -91,18 +93,14 @@ contract ClankerAddressPredictorTest is Test {
   }
 
   /// @notice Fuzz test metadata strings
-  function testFuzz_predictTokenAddress_metadata(string memory image, string memory metadata, string memory context)
-    public
-  {
+  function testFuzz_predictTokenAddress_metadata(string memory image, string memory metadata) public {
     // Bound string lengths
     vm.assume(bytes(image).length <= 100);
     vm.assume(bytes(metadata).length <= 100);
-    vm.assume(bytes(context).length <= 100);
 
     IClanker.TokenConfig memory config = _createDefaultConfig();
     config.image = image;
     config.metadata = metadata;
-    config.context = context;
 
     // Predict address
     address predicted = ClankerAddressPredictor.predictTokenAddress(ETHEREUM_FACTORY, config);
@@ -121,15 +119,13 @@ contract ClankerAddressPredictorTest is Test {
     string memory name,
     string memory symbol,
     string memory image,
-    string memory metadata,
-    string memory context
+    string memory metadata
   ) public {
     // Apply bounds
     vm.assume(bytes(name).length > 0 && bytes(name).length <= 50);
     vm.assume(bytes(symbol).length > 0 && bytes(symbol).length <= 20);
     vm.assume(bytes(image).length <= 100);
     vm.assume(bytes(metadata).length <= 100);
-    vm.assume(bytes(context).length <= 100);
 
     IClanker.TokenConfig memory config = IClanker.TokenConfig({
       tokenAdmin: _getPreloadedAddress(adminSeed),
@@ -138,7 +134,7 @@ contract ClankerAddressPredictorTest is Test {
       salt: salt,
       image: image,
       metadata: metadata,
-      context: context,
+      context: CLANKER_WORLD_CONTEXT,
       originatingChainId: block.chainid
     });
 
@@ -162,8 +158,7 @@ contract ClankerAddressPredictorTest is Test {
       "Test Token",
       "TEST",
       "https://example.com/image.png",
-      "metadata",
-      "context"
+      "metadata"
     );
   }
 
@@ -178,7 +173,7 @@ contract ClankerAddressPredictorTest is Test {
       salt: 0x000000000000000000000000000000005e95d213a71de2a3918637b124818091,
       image: "https://turquoise-blank-swallow-685.mypinata.cloud/ipfs/bafkreihbx7xgpkwxahbnetgssr553sgcbt4tkjda3niq5z47w6jzudqjni",
       metadata: '{"description":"No description provided","socialMediaUrls":[],"auditUrls":[]}',
-      context: '{"interface":"clanker.world","platform":"","messageId":"","id":""}',
+      context: CLANKER_WORLD_CONTEXT,
       originatingChainId: 1
     });
 
@@ -198,7 +193,7 @@ contract ClankerAddressPredictorTest is Test {
 
   /// @notice Test empty strings
   function test_predictTokenAddress_emptyStrings() public {
-    testFuzz_predictTokenAddress_metadata("", "", "");
+    testFuzz_predictTokenAddress_metadata("", "");
   }
 
   /// @notice Test zero address admin
@@ -227,7 +222,7 @@ contract ClankerAddressPredictorTest is Test {
       salt: bytes32(uint256(1)),
       image: "https://example.com/image.png",
       metadata: "Test metadata",
-      context: "Test context",
+      context: CLANKER_WORLD_CONTEXT,
       originatingChainId: 1 // Ethereum mainnet
     });
   }

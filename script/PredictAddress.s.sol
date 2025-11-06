@@ -14,6 +14,8 @@ contract PredictAddress is Script {
   address constant ETHEREUM_FACTORY = 0x6C8599779B03B00AAaE63C6378830919Abb75473;
   address constant BASE_FACTORY = 0xE85A59c628F7d27878ACeB4bf3b35733630083a9;
 
+  string public constant CLANKER_WORLD_CONTEXT = '{"interface":"clanker.world","platform":"","messageId":"","id":""}';
+
   function run() public view {
     // Load token configuration from environment variables
     IClanker.TokenConfig memory config = IClanker.TokenConfig({
@@ -23,7 +25,7 @@ contract PredictAddress is Script {
       salt: vm.envBytes32("TOKEN_SALT"),
       image: vm.envString("TOKEN_IMAGE"),
       metadata: vm.envString("TOKEN_METADATA"),
-      context: vm.envString("TOKEN_CONTEXT"),
+      context: CLANKER_WORLD_CONTEXT,
       originatingChainId: block.chainid // Derived from runtime network
     });
 
