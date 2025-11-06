@@ -4,3 +4,8 @@ optimized-out/
 .vscode/
 broadcast/
 .env
+
+# coding assistant artifacts
+reports/
+tasks/
+specs/

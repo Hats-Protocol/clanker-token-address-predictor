@@ -11,6 +11,9 @@ solc = "0.8.28"
 remappings = [
   "ds-test/=lib/forge-std/lib/ds-test/src/",
   "forge-std/=lib/forge-std/src/",
+  "@openzeppelin/contracts/=lib/v4-contracts/lib/openzeppelin-contracts/contracts/",
+  "@uniswap/v4-core/=lib/v4-contracts/lib/v4-core/",
+  "@contracts-bedrock/=lib/v4-contracts/lib/optimism/packages/contracts-bedrock/",
 ]
 # Enable tests to read ir-optimized bytecode precompiled by profile.optimized
 fs_permissions = [{ access = "read", path = "./optimized-out" }]
@@ -38,6 +41,16 @@ fuzz = { runs = 32 }
 invariant = { runs = 10 }
 # Speed up compilation and tests during development.
 optimizer = false
+
+# Profile to match mainnet factory compiler settings for accurate CREATE2 prediction
+# Factory deployed with: solc v0.8.28, 20k optimizer runs, via_ir=true, evm=cancun
+[profile.clanker]
+optimizer_runs = 20_000
+via_ir = true
+cbor_metadata = false
+bytecode_hash = "none"
+solc = "0.8.28"
+evm_version = "cancun"
 
 [fmt]
 bracket_spacing = true
