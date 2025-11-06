@@ -5,3 +5,15 @@
 [submodule "lib/v4-contracts"]
 	path = lib/v4-contracts
 	url = https://github.com/clanker-devco/v4-contracts
+[submodule "lib/v4-pool-extensions"]
+	path = lib/v4-pool-extensions
+	url = https://github.com/clanker-devco/v4-pool-extensions
+[submodule "lib/v4-periphery"]
+	path = lib/v4-periphery
+	url = https://github.com/Uniswap/v4-periphery
+[submodule "lib/permit2"]
+	path = lib/permit2
+	url = https://github.com/Uniswap/permit2
+[submodule "lib/universal-router"]
+	path = lib/universal-router
+	url = https://github.com/Uniswap/universal-router

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(FOUNDRY_PROFILE=clanker forge build:*)",
+      "Bash(FOUNDRY_PROFILE=clanker forge test:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

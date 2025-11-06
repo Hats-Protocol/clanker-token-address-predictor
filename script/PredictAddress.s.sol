@@ -16,24 +16,12 @@ contract PredictAddress is Script {
 
   string public constant CLANKER_WORLD_CONTEXT = '{"interface":"clanker.world","platform":"","messageId":"","id":""}';
 
-  function run() public view {
-    // Load token configuration from environment variables
-    IClanker.TokenConfig memory config = IClanker.TokenConfig({
-      tokenAdmin: vm.envAddress("TOKEN_ADMIN"),
-      name: vm.envString("TOKEN_NAME"),
-      symbol: vm.envString("TOKEN_SYMBOL"),
-      salt: vm.envBytes32("TOKEN_SALT"),
-      image: vm.envString("TOKEN_IMAGE"),
-      metadata: vm.envString("TOKEN_METADATA"),
-      context: CLANKER_WORLD_CONTEXT,
-      originatingChainId: block.chainid // Derived from runtime network
-    });
-
+  function predict(IClanker.TokenConfig memory config) public view returns (address predicted) {
     // Get factory address for current chain
     address factory = getFactoryAddress(block.chainid);
 
     // Predict token address
-    address predicted = ClankerAddressPredictor.predictTokenAddress(factory, config);
+    predicted = ClankerAddressPredictor.predictTokenAddress(factory, config);
 
     // Output results
     console2.log("=== Clanker Token Address Prediction ===");
@@ -55,6 +43,23 @@ contract PredictAddress is Script {
     console2.log("Predicted Token Address:", predicted);
     console2.log("");
     console2.log("========================================");
+  }
+
+  function run() public view {
+    // Load token configuration from environment variables
+    IClanker.TokenConfig memory config = IClanker.TokenConfig({
+      tokenAdmin: vm.envAddress("TOKEN_ADMIN"),
+      name: vm.envString("TOKEN_NAME"),
+      symbol: vm.envString("TOKEN_SYMBOL"),
+      salt: vm.envBytes32("TOKEN_SALT"),
+      image: vm.envString("TOKEN_IMAGE"),
+      metadata: vm.envString("TOKEN_METADATA"),
+      context: CLANKER_WORLD_CONTEXT,
+      originatingChainId: block.chainid // Derived from runtime network
+    });
+
+    // Predict token address
+    predict(config);
   }
 
   /// @notice Get factory address for a given chain ID

@@ -1,32 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { Test, console2 } from "forge-std/Test.sol";
+import { console2 } from "forge-std/Test.sol";
 import { ClankerAddressPredictor } from "../src/ClankerAddressPredictor.sol";
+import { PredictAddress } from "../script/PredictAddress.s.sol";
 import { IClanker } from "lib/v4-contracts/src/interfaces/IClanker.sol";
 import { Clanker } from "lib/v4-contracts/src/Clanker.sol";
+import { IClankerHookV2 } from "lib/v4-contracts/src/hooks/interfaces/IClankerHookV2.sol";
+import { IClankerHookStaticFee } from "lib/v4-contracts/src/hooks/interfaces/IClankerHookStaticFee.sol";
+import { IWETH9 } from "@uniswap/v4-periphery/src/interfaces/external/IWETH9.sol";
+import { ClankerMainnetTestBase } from "./helpers/ClankerMainnetTestBase.sol";
 
 /// forge-config: default.fuzz.runs = 32
-contract ClankerAddressPredictorTest is Test {
-  // Ethereum Mainnet addresses
-  address constant ETHEREUM_FACTORY = 0x6C8599779B03B00AAaE63C6378830919Abb75473;
+contract ClankerAddressPredictorTest is ClankerMainnetTestBase {
+  // Test-specific constants
   uint256 constant TOKEN_SUPPLY = 100_000_000_000e18;
-  uint256 constant FORK_BLOCK = 23_719_377; // Block prior to real deployment tx
-
-  address constant MAINNET_HOOK = 0x6C24D0bCC264EF6A740754A11cA579b9d225e8Cc;
-  address constant MAINNET_LOCKER = 0x00C4b21889145CF0D99f2e05919103e0c3991974;
-  address constant MAINNET_MEV_MODULE = 0x33e2Eda238edcF470309b8c6D228986A1204c8f9;
-  address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
   string constant CLANKER_WORLD_CONTEXT = '{"interface":"clanker.world","platform":"","messageId":"","id":""}';
 
   // Pre-loaded addresses for fuzz testing (avoids excessive RPC calls)
   address[] internal preloadedAddresses;
   Clanker internal factory;
+  PredictAddress internal predictionScript;
 
-  function setUp() public {
-    vm.createSelectFork(vm.rpcUrl("mainnet"), FORK_BLOCK);
-    factory = Clanker(ETHEREUM_FACTORY);
+  function setUp() public override {
+    super.setUp(); // Creates mainnet fork at FORK_BLOCK
+    factory = Clanker(CLANKER);
 
     // Generate 50 pseudorandom addresses using makeAddr
     for (uint256 i = 0; i < 50; i++) {
@@ -35,6 +33,9 @@ contract ClankerAddressPredictorTest is Test {
 
     // Add zero address as edge case
     preloadedAddresses.push(address(0));
+
+    // Deploy address prediction script
+    predictionScript = new PredictAddress();
   }
 
   // ============ Fuzz Tests (Foundation Layer) ============
@@ -48,7 +49,7 @@ contract ClankerAddressPredictorTest is Test {
     config.salt = salt;
 
     // Predict address
-    address predicted = ClankerAddressPredictor.predictTokenAddress(ETHEREUM_FACTORY, config);
+    address predicted = predictionScript.predict(config);
 
     // Build full deployment config and deploy actual token
     address actual = _deployTokenWithTokenConfig(config);
@@ -63,7 +64,7 @@ contract ClankerAddressPredictorTest is Test {
     config.salt = salt;
 
     // Predict address
-    address predicted = ClankerAddressPredictor.predictTokenAddress(ETHEREUM_FACTORY, config);
+    address predicted = predictionScript.predict(config);
 
     // Build full deployment config and deploy actual token
     address actual = _deployTokenWithTokenConfig(config);
@@ -83,7 +84,7 @@ contract ClankerAddressPredictorTest is Test {
     config.symbol = symbol;
 
     // Predict address
-    address predicted = ClankerAddressPredictor.predictTokenAddress(ETHEREUM_FACTORY, config);
+    address predicted = predictionScript.predict(config);
 
     // Build full deployment config and deploy actual token
     address actual = _deployTokenWithTokenConfig(config);
@@ -103,7 +104,7 @@ contract ClankerAddressPredictorTest is Test {
     config.metadata = metadata;
 
     // Predict address
-    address predicted = ClankerAddressPredictor.predictTokenAddress(ETHEREUM_FACTORY, config);
+    address predicted = predictionScript.predict(config);
 
     // Build full deployment config and deploy actual token
     address actual = _deployTokenWithTokenConfig(config);
@@ -139,7 +140,7 @@ contract ClankerAddressPredictorTest is Test {
     });
 
     // Predict address
-    address predicted = ClankerAddressPredictor.predictTokenAddress(ETHEREUM_FACTORY, config);
+    address predicted = predictionScript.predict(config);
 
     // Build full deployment config and deploy actual token
     address actual = _deployTokenWithTokenConfig(config);
@@ -181,7 +182,7 @@ contract ClankerAddressPredictorTest is Test {
     address expectedAddress = 0xd1A89f9B07a5170EDC02CE4019d300e095b11B07;
 
     // Predict address
-    address predicted = ClankerAddressPredictor.predictTokenAddress(ETHEREUM_FACTORY, config);
+    address predicted = predictionScript.predict(config);
 
     console2.log("Predicted:", predicted);
     console2.log("Expected:", expectedAddress);
@@ -202,7 +203,7 @@ contract ClankerAddressPredictorTest is Test {
     config.tokenAdmin = address(0);
 
     // Predict address
-    address predicted = ClankerAddressPredictor.predictTokenAddress(ETHEREUM_FACTORY, config);
+    address predicted = predictionScript.predict(config);
 
     // Build full deployment config and deploy actual token
     address actual = _deployTokenWithTokenConfig(config);
@@ -236,17 +237,51 @@ contract ClankerAddressPredictorTest is Test {
   /// @param config The token config
   /// @return The address of the deployed token
   function _deployTokenWithTokenConfig(IClanker.TokenConfig memory config) internal returns (address) {
+    // Mock the locker's placeLiquidity to skip liquidity placement
+    // This allows us to test address prediction without complex liquidity setup
+    // The placeLiquidity call would need WETH and complex Uniswap V4 state
+    // Function signature: placeLiquidity(LockerConfig,PoolConfig,PoolKey,uint256,address) returns (uint256)
+    vm.mockCall(
+      CLANKER_LP_LOCKER_FEE_CONVERSION,
+      abi.encodeWithSelector(
+        bytes4(
+          keccak256(
+            "placeLiquidity((address,address[],address[],uint16[],int24[],int24[],uint16[],bytes),(address,address,int24,int24,bytes),(address,address,uint24,int24,address),uint256,address)"
+          )
+        )
+      ),
+      abi.encode(uint256(1)) // Return tokenId = 1
+    );
+
     IClanker.DeploymentConfig memory deployConfig = _buildDeploymentConfig(config);
-    return IClanker(ETHEREUM_FACTORY).deployToken{ value: 0 }(deployConfig);
+
+    // Note: msg.value=0 is correct - ETH value is only used for extensions (dev buy, etc.)
+    return IClanker(CLANKER).deployToken{ value: 0 }(deployConfig);
   }
 
   /// @notice Build minimal valid DeploymentConfig for mainnet testing
   /// @dev Uses configuration pattern from real mainnet deployment tx
   /// 0x81d270103943d4f41c63caee6321d1654c29176ef24a0b4c109ec969bacb4ada
   function _buildPoolConfig() internal pure returns (IClanker.PoolConfig memory) {
-    bytes memory poolData = abi.encode(uint24(10_000), uint24(10_000));
+    // Build V2 hook initialization data with proper struct encoding
+    bytes memory poolData = abi.encode(
+      IClankerHookV2.PoolInitializationData({
+        extension: address(0), // No pool extension for basic deployment
+        extensionData: abi.encode(), // Empty extension data
+        feeData: abi.encode(
+          IClankerHookStaticFee.PoolStaticConfigVars({
+            clankerFee: 10_000, // 1% fee (in basis points)
+            pairedFee: 10_000 // 1% fee (in basis points)
+          })
+        )
+      })
+    );
     return IClanker.PoolConfig({
-      hook: MAINNET_HOOK, pairedToken: WETH, tickIfToken0IsClanker: -230_400, tickSpacing: 200, poolData: poolData
+      hook: CLANKER_STATIC_HOOK_V2,
+      pairedToken: WETH,
+      tickIfToken0IsClanker: -230_400,
+      tickSpacing: 200,
+      poolData: poolData
     });
   }
 
@@ -284,7 +319,7 @@ contract ClankerAddressPredictorTest is Test {
     bytes memory lockerData = abi.encode(true, true);
 
     return IClanker.LockerConfig({
-      locker: MAINNET_LOCKER,
+      locker: CLANKER_LP_LOCKER_FEE_CONVERSION,
       rewardAdmins: rewardAdmins,
       rewardRecipients: rewardRecipients,
       rewardBps: rewardBps,
@@ -297,7 +332,7 @@ contract ClankerAddressPredictorTest is Test {
 
   function _buildMevModuleConfig() internal pure returns (IClanker.MevModuleConfig memory) {
     bytes memory mevModuleData = abi.encode(uint256(666_777), uint256(41_673), uint256(90));
-    return IClanker.MevModuleConfig({ mevModule: MAINNET_MEV_MODULE, mevModuleData: mevModuleData });
+    return IClanker.MevModuleConfig({ mevModule: CLANKER_MEV_FEE_DECAY, mevModuleData: mevModuleData });
   }
 
   function _buildDeploymentConfig(IClanker.TokenConfig memory tokenConfig)
